@@ -1,3 +1,5 @@
+import { normalizeRange } from './dates.js'
+
 /**
  * Pure helpers for the to-do list.
  *
@@ -22,13 +24,20 @@ export function newId() {
   return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Create a brand new (incomplete) task. */
-export function createTodo(title) {
+/**
+ * Create a brand new (incomplete) task.
+ *
+ * `startDate` and `endDate` are optional ISO calendar dates ("YYYY-MM-DD").
+ * Passing only one of them makes a single-day task, and passing them the wrong
+ * way round just swaps them, so callers cannot build a broken range.
+ */
+export function createTodo(title, { startDate = null, endDate = null } = {}) {
   return {
     id: newId(),
     title: title.trim(),
     completed: false,
     createdAt: new Date().toISOString(),
+    ...normalizeRange(startDate, endDate),
   }
 }
 
@@ -59,6 +68,14 @@ export function todosReducer(todos, action) {
       )
     }
 
+    case 'rescheduled': {
+      // Accepts nulls, so `{ type: 'rescheduled', id }` clears the dates.
+      const range = normalizeRange(action.startDate, action.endDate)
+      return todos.map((todo) =>
+        todo.id === action.id ? { ...todo, ...range } : todo,
+      )
+    }
+
     case 'deleted':
       return todos.filter((todo) => todo.id !== action.id)
 
@@ -74,7 +91,8 @@ export function todosReducer(todos, action) {
  * Turn anything we loaded from localStorage into a trustworthy list of tasks.
  * Data in localStorage can be missing, outdated or hand-edited, so we never
  * trust it. After this function runs, every item is guaranteed to have a
- * string id, a non-empty title and a boolean `completed`.
+ * string id, a non-empty title, a boolean `completed` and either a valid
+ * `startDate`/`endDate` pair or `null`s.
  */
 export function sanitizeTodos(value) {
   if (!Array.isArray(value)) return []
@@ -95,6 +113,8 @@ export function sanitizeTodos(value) {
         typeof todo.createdAt === 'string'
           ? todo.createdAt
           : new Date().toISOString(),
+      // Tasks saved before the calendar existed simply come back undated.
+      ...normalizeRange(todo.startDate, todo.endDate),
     }))
 }
 

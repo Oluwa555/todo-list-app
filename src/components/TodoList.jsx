@@ -7,9 +7,17 @@ const EMPTY_MESSAGES = {
 }
 
 /** Renders the list of tasks, or a friendly message when there are none. */
-export default function TodoList({ todos, filter, onToggle, onEdit, onDelete }) {
+export default function TodoList({
+  todos,
+  filter,
+  emptyMessage,
+  onToggle,
+  onEdit,
+  onReschedule,
+  onDelete,
+}) {
   if (todos.length === 0) {
-    return <p className="todo-list__empty">{EMPTY_MESSAGES[filter]}</p>
+    return <p className="todo-list__empty">{emptyMessage ?? EMPTY_MESSAGES[filter]}</p>
   }
 
   return (
@@ -21,6 +29,7 @@ export default function TodoList({ todos, filter, onToggle, onEdit, onDelete }) 
           todo={todo}
           onToggle={onToggle}
           onEdit={onEdit}
+          onReschedule={onReschedule}
           onDelete={onDelete}
         />
       ))}

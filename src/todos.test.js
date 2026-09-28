@@ -31,6 +31,47 @@ describe('createTodo', () => {
 
     expect(ids.size).toBe(3)
   })
+
+  it('has no dates by default', () => {
+    const todo = createTodo('No dates')
+
+    expect(todo.startDate).toBeNull()
+    expect(todo.endDate).toBeNull()
+  })
+
+  it('stores a start and end date', () => {
+    const todo = createTodo('Trip', {
+      startDate: '2026-09-28',
+      endDate: '2026-10-03',
+    })
+
+    expect(todo.startDate).toBe('2026-09-28')
+    expect(todo.endDate).toBe('2026-10-03')
+  })
+
+  it('swaps dates given in the wrong order', () => {
+    const todo = createTodo('Trip', {
+      startDate: '2026-10-03',
+      endDate: '2026-09-28',
+    })
+
+    expect(todo.startDate).toBe('2026-09-28')
+    expect(todo.endDate).toBe('2026-10-03')
+  })
+
+  it('makes a one-sided range a single day', () => {
+    const todo = createTodo('Call', { startDate: '2026-09-28' })
+
+    expect(todo.startDate).toBe('2026-09-28')
+    expect(todo.endDate).toBe('2026-09-28')
+  })
+
+  it('ignores impossible dates', () => {
+    const todo = createTodo('Call', { startDate: '2026-02-30', endDate: 'oops' })
+
+    expect(todo.startDate).toBeNull()
+    expect(todo.endDate).toBeNull()
+  })
 })
 
 describe('todosReducer', () => {
@@ -91,6 +132,66 @@ describe('todosReducer', () => {
     expect(next.map((todo) => todo.id)).toEqual(['a'])
   })
 
+  it('sets both dates on a rescheduled task', () => {
+    const next = todosReducer(makeTodos(), {
+      type: 'rescheduled',
+      id: 'a',
+      startDate: '2026-09-28',
+      endDate: '2026-09-30',
+    })
+
+    expect(next[0].startDate).toBe('2026-09-28')
+    expect(next[0].endDate).toBe('2026-09-30')
+  })
+
+  it('does not mutate the previous list when rescheduling', () => {
+    const todos = makeTodos()
+    const next = todosReducer(todos, {
+      type: 'rescheduled',
+      id: 'a',
+      startDate: '2026-09-28',
+      endDate: '2026-09-30',
+    })
+
+    expect(next).not.toBe(todos)
+    expect(next[0]).not.toBe(todos[0])
+    expect(todos[0].startDate).toBeUndefined()
+  })
+
+  it('leaves other tasks alone when rescheduling', () => {
+    const todos = makeTodos()
+    const next = todosReducer(todos, {
+      type: 'rescheduled',
+      id: 'b',
+      startDate: '2026-09-28',
+      endDate: '2026-09-30',
+    })
+
+    expect(next[0]).toBe(todos[0]) // untouched row keeps its identity
+  })
+
+  it('swaps rescheduled dates given the wrong way round', () => {
+    const next = todosReducer(makeTodos(), {
+      type: 'rescheduled',
+      id: 'a',
+      startDate: '2026-09-30',
+      endDate: '2026-09-28',
+    })
+
+    expect(next[0].startDate).toBe('2026-09-28')
+    expect(next[0].endDate).toBe('2026-09-30')
+  })
+
+  it('clears the dates when rescheduled with empty values', () => {
+    const withDates = [
+      { ...makeTodos()[0], startDate: '2026-09-28', endDate: '2026-09-30' },
+    ]
+    const next = todosReducer(withDates, { type: 'rescheduled', id: 'a' })
+
+    expect(next[0].startDate).toBeNull()
+    expect(next[0].endDate).toBeNull()
+  })
+
   it('throws on an unknown action so bugs are loud', () => {
     expect(() => todosReducer(makeTodos(), { type: 'exploded' })).toThrow(
       /Unknown action type/,
@@ -125,6 +226,45 @@ describe('sanitizeTodos', () => {
     expect(todo.completed).toBe(false) // only real booleans count
     expect(typeof todo.id).toBe('string')
     expect(typeof todo.createdAt).toBe('string')
+  })
+
+  it('gives tasks saved before the calendar existed two null dates', () => {
+    const [todo] = sanitizeTodos([{ id: 'a', title: 'Old task' }])
+
+    expect(todo.startDate).toBeNull()
+    expect(todo.endDate).toBeNull()
+  })
+
+  it('keeps a valid date range', () => {
+    const [todo] = sanitizeTodos([
+      { id: 'a', title: 'Trip', startDate: '2026-09-28', endDate: '2026-10-03' },
+    ])
+
+    expect(todo.startDate).toBe('2026-09-28')
+    expect(todo.endDate).toBe('2026-10-03')
+  })
+
+  it('repairs a reversed or impossible stored range', () => {
+    const [reversed] = sanitizeTodos([
+      { id: 'a', title: 'Trip', startDate: '2026-10-03', endDate: '2026-09-28' },
+    ])
+    expect(reversed.startDate).toBe('2026-09-28')
+    expect(reversed.endDate).toBe('2026-10-03')
+
+    const [broken] = sanitizeTodos([
+      { id: 'b', title: 'Trip', startDate: '2026-02-30', endDate: 'nonsense' },
+    ])
+    expect(broken.startDate).toBeNull()
+    expect(broken.endDate).toBeNull()
+  })
+
+  it('keeps the good half of a partly broken range', () => {
+    const [todo] = sanitizeTodos([
+      { id: 'a', title: 'Trip', startDate: '2026-09-28', endDate: '2026-13-40' },
+    ])
+
+    expect(todo.startDate).toBe('2026-09-28')
+    expect(todo.endDate).toBe('2026-09-28')
   })
 })
 
