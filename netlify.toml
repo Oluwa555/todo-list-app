@@ -1,0 +1,8 @@
+# Netlify reads this file automatically, so nothing has to be typed into the
+# dashboard's build settings.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
